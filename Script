@@ -745,25 +745,33 @@ local function toggleCheeseESP(state)
     print("Cheese ESP:", cheeseESPEnabled)
 end
 
--- Collect Cheeses: create 9 CheeseAdd1 models, each containing 1 cheese
 local function collectCheeses()
     local srcParent = workspace:FindFirstChild("FindCheese")
-    if not srcParent then warn("FindCheese not found") return end
+    if not srcParent then 
+        warn("FindCheese not found") 
+        return 
+    end
 
-    -- Use the original CheeseAdd1 as a template
     local template = srcParent:FindFirstChild("CheeseAdd1")
-    if not template then warn("CheeseAdd1 template not found") return end
+    if not template then 
+        warn("CheeseAdd1 template not found") 
+        return 
+    end
 
     local cheeseSample = template:FindFirstChild("Cheese")
-    if not cheeseSample then warn("Cheese part not found inside CheeseAdd1") return end
+    if not cheeseSample or not cheeseSample:IsA("BasePart") then 
+        warn("Cheese part not found or invalid inside CheeseAdd1") 
+        return 
+    end
 
-    local Players = game:GetService("Players")
-    local player = Players.LocalPlayer
+    local player = game:GetService("Players").LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then warn("HumanoidRootPart missing") return end
+    if not hrp then 
+        warn("HumanoidRootPart missing") 
+        return 
+    end
 
-    -- Create 9 CheeseAdd1 models
     for i = 1, 9 do
         local newModel = Instance.new("Model")
         newModel.Name = "CheeseAdd1"
@@ -771,7 +779,7 @@ local function collectCheeses()
 
         local clonedCheese = cheeseSample:Clone()
         clonedCheese.Parent = newModel
-        clonedCheese.CFrame = hrp.CFrame * CFrame.new(math.random(-3, 3), 1, math.random(-3, 3))
+        clonedCheese.Position = hrp.Position + Vector3.new(math.random(-3,3), 1, math.random(-3,3))
     end
 
     print("Spawned 9 CheeseAdd1 models, each with 1 cheese.")
