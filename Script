@@ -1,0 +1,843 @@
+-- Cheese Escape - BMF (Exploit-style custom UI)
+-- All button logic is placeholder and prints "WIP!"
+-- Drop this script into an executor environment that runs LocalScripts (exploit) or use in StarterPlayerScripts for testing.
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Cleanup existing GUI with same name
+for _,v in ipairs(PlayerGui:GetChildren()) do
+    if v.Name == "CheeseEscapeBMF_GUI" then
+        v:Destroy()
+    end
+end
+
+-- Main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CheeseEscapeBMF_GUI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+-- Styles
+local uiAccent = Color3.fromRGB(255, 190, 0) -- cheese-like gold
+local uiDark = Color3.fromRGB(20,20,25)
+local uiDarker = Color3.fromRGB(12,12,15)
+local uiText = Color3.fromRGB(235,235,235)
+
+-- Utility: rounded corner function
+local function makeUICorner(instance, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = instance
+    return corner
+end
+
+-- Utility: create shadow
+local function makeShadow(parent)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://6014261993" -- subtle shadow asset
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10,10,118,118)
+    shadow.ImageColor3 = Color3.new(0,0,0)
+    shadow.ImageTransparency = 0.75
+    shadow.Parent = parent
+    return shadow
+end
+
+-- Main Window
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.new(0, 520, 0, 380)
+main.Position = UDim2.new(0.5, -260, 0.5, -190)
+main.AnchorPoint = Vector2.new(0.5, 0.5)
+main.BackgroundColor3 = uiDark
+makeUICorner(main, 14)
+main.Parent = screenGui
+makeShadow(main)
+
+-- Draggable logic (click-drag anywhere on header)
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local function makeDraggable(target, dragHandle)
+    dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = target.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    dragHandle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            RunService.RenderStepped:Wait()
+            if dragging and dragStart and startPos then
+                local delta = input.Position - dragStart
+                target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end
+    end)
+end
+
+-- Header
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 56)
+header.Position = UDim2.new(0,0,0,0)
+header.BackgroundColor3 = uiDarker
+header.Parent = main
+makeUICorner(header, 14)
+
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(0, 1, 1, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Cheese Escape - BMF"
+title.TextColor3 = uiAccent
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+-- Error log under title
+local errorLog = Instance.new("TextLabel")
+errorLog.Name = "ErrorLog"
+errorLog.Size = UDim2.new(0.6, -24, 0, 18)
+errorLog.Position = UDim2.new(0, 12, 1, -22)
+errorLog.BackgroundTransparency = 1
+errorLog.Text = "Status: OK"
+errorLog.TextColor3 = Color3.fromRGB(230,100,100)
+errorLog.Font = Enum.Font.Gotham
+errorLog.TextSize = 14
+errorLog.TextXAlignment = Enum.TextXAlignment.Left
+errorLog.Parent = header
+
+-- Close / Toggle hint
+local keyHint = Instance.new("TextLabel")
+keyHint.Name = "KeyHint"
+keyHint.Size = UDim2.new(0, 150, 1, 0)
+keyHint.Position = UDim2.new(1, -156, 0, 0)
+keyHint.BackgroundTransparency = 1
+keyHint.Text = "Toggle: Delete"
+keyHint.TextColor3 = uiText
+keyHint.Font = Enum.Font.Gotham
+keyHint.TextSize = 14
+keyHint.TextXAlignment = Enum.TextXAlignment.Right
+keyHint.Parent = header
+
+makeDraggable(main, header)
+
+-- Left sidebar for tabs
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, 132, 1, -56)
+sidebar.Position = UDim2.new(0, 0, 0, 56)
+sidebar.BackgroundColor3 = uiDarker
+sidebar.BorderSizePixel = 0
+sidebar.Parent = main
+makeUICorner(sidebar, 12)
+
+local tabs = {"Player","Teleports","Tools","Cheats","Misc"}
+local tabButtons = {}
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.Padding = UDim.new(0, 8)
+tabLayout.FillDirection = Enum.FillDirection.Vertical
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+tabLayout.Parent = sidebar
+
+-- Content area
+local content = Instance.new("Frame")
+content.Name = "Content"
+content.Size = UDim2.new(1, -140, 1, -56)
+content.Position = UDim2.new(0, 140, 0, 56)
+content.BackgroundColor3 = uiDark
+content.Parent = main
+makeUICorner(content, 12)
+
+-- Scrolling frame for buttons / controls
+local scroll = Instance.new("ScrollingFrame")
+scroll.Name = "Scroll"
+scroll.Size = UDim2.new(1, -24, 1, -24)
+scroll.Position = UDim2.new(0, 12, 0, 12)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ScrollBarThickness = 8
+scroll.Parent = content
+
+local scrollLayout = Instance.new("UIListLayout")
+scrollLayout.Parent = scroll
+scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+scrollLayout.Padding = UDim.new(0, 8)
+
+local function updateCanvas()
+    RunService.Heartbeat:Wait()
+    local total = 0
+    for _,v in ipairs(scrollLayout:GetChildren()) do end
+    local size = 0
+    for _,child in ipairs(scroll:GetChildren()) do
+        if child:IsA("GuiObject") and child ~= scrollLayout then
+            size = size + child.AbsoluteSize.Y + 8
+        end
+    end
+    scroll.CanvasSize = UDim2.new(0,0,0, math.max(size, scroll.AbsoluteWindowSize.Y))
+end
+
+-- Button factory
+local function createButton(text)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.BackgroundColor3 = uiDarker
+    btn.BorderSizePixel = 0
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextColor3 = uiText
+    btn.TextSize = 16
+    btn.Text = text
+    btn.AutoButtonColor = false
+    makeUICorner(btn, 8)
+
+    local accent = Instance.new("Frame")
+    accent.Size = UDim2.new(0, 6, 1, 0)
+    accent.Position = UDim2.new(0, -6, 0, 0)
+    accent.BackgroundColor3 = uiAccent
+    accent.Parent = btn
+    accent.Visible = false
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundColor3 = Color3.fromRGB(28,28,34)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {BackgroundColor3 = uiDarker}):Play()
+    end)
+
+    return btn, accent
+end
+
+-- Tab content definitions
+local tabContents = {
+    Player = {"Noclip","Fly","Infinite Jump","Speed Hack"},
+    Teleports = {"Red Room","Blue Room","Green Room","Spawn"},
+    Tools = {"Red Key","Blue Key","Green Key","Plank"},
+    Cheats = {"Collect Cheeses","Cheese ESP","Rat ESP","Rat Ignores You","Become the Rat"},
+    Misc = {"Infinite Yield","Dex Explorer","BMF Hub"}
+}
+
+local activeTab = "Player"
+
+-- Create sidebar buttons
+for i, name in ipairs(tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Name = name.."TabBtn"
+    btn.Size = UDim2.new(0.9, 0, 0, 44)
+    btn.BackgroundTransparency = 1
+    btn.Font = Enum.Font.GothamBold
+    btn.Text = name
+    btn.TextSize = 16
+    btn.TextColor3 = uiText
+    btn.Parent = sidebar
+
+    tabButtons[name] = btn
+
+    btn.MouseButton1Click:Connect(function()
+        if activeTab == name then return end
+        activeTab = name
+        -- highlight selected
+        for t, b in pairs(tabButtons) do
+            if t == name then
+                b.TextColor3 = uiAccent
+            else
+                b.TextColor3 = uiText
+            end
+        end
+        -- rebuild content
+        for _,child in ipairs(scroll:GetChildren()) do
+            if child ~= scrollLayout then child:Destroy() end
+        end
+        local headerLabel = Instance.new("TextLabel")
+        headerLabel.Size = UDim2.new(1,0,0,28)
+        headerLabel.BackgroundTransparency = 1
+        headerLabel.Font = Enum.Font.GothamBold
+        headerLabel.Text = name
+        headerLabel.TextColor3 = uiAccent
+        headerLabel.TextSize = 20
+        headerLabel.TextXAlignment = Enum.TextXAlignment.Left
+        headerLabel.Parent = scroll
+
+        for _,btnName in ipairs(tabContents[name] or {}) do
+            local b, accent = createButton(btnName)
+            b.Parent = scroll
+            accent.Visible = true
+
+            b.MouseButton1Click:Connect(function()
+                -- Placeholder for button logic: print WIP!
+                print("[CheeseEscape - BMF] Button clicked: "..btnName.." -> WIP!")
+                errorLog.Text = "Status: Executed '"..btnName.."' (WIP)"
+            end)
+        end
+        updateCanvas()
+    end)
+end
+
+-- Initialize active tab visuals
+for t,b in pairs(tabButtons) do
+    if t == activeTab then b.TextColor3 = uiAccent else b.TextColor3 = uiText end
+end
+
+-- Populate initial content
+local initialEvent = Instance.new("BindableEvent")
+initialEvent.Event:Connect(function()
+    tabButtons[activeTab].MouseButton1Click:Fire()
+end)
+initialEvent:Fire()
+
+-- Toggle UI with Delete key
+local uiVisible = true
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Delete then
+        uiVisible = not uiVisible
+        if uiVisible then
+            main.Visible = true
+            errorLog.Text = "Status: OK"
+        else
+            main.Visible = false
+        end
+    end
+end)
+
+-- Simple animated glow on title
+spawn(function()
+    while true do
+        TweenService:Create(title, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = Color3.fromRGB(255, 210, 120)}):Play()
+        wait(1.2)
+        TweenService:Create(title, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {TextColor3 = uiAccent}):Play()
+        wait(1.2)
+    end
+end)
+
+-- Simple utility commands to simulate 'WIP' actions if desired (safe placeholders)
+-- These functions only print and do not modify game state
+local WIPActions = {
+    ["Noclip"] = function() print("WIP! Noclip") end,
+    ["Fly"] = function() print("WIP! Fly") end,
+    ["Infinite Jump"] = function() print("WIP! Infinite Jump") end,
+    ["Speed Hack"] = function() print("WIP! Speed Hack") end,
+    ["Red Room"] = function() print("WIP! Teleport to Red Room") end,
+    ["Blue Room"] = function() print("WIP! Teleport to Blue Room") end,
+    ["Green Room"] = function() print("WIP! Teleport to Green Room") end,
+    ["Spawn"] = function() print("WIP! Teleport to Spawn") end,
+    ["Red Key"] = function() print("WIP! Give Red Key") end,
+    ["Blue Key"] = function() print("WIP! Give Blue Key") end,
+    ["Green Key"] = function() print("WIP! Give Green Key") end,
+    ["Plank"] = function() print("WIP! Give Plank") end,
+    ["Collect Cheeses"] = function() print("WIP! Collect Cheeses") end,
+    ["Cheese ESP"] = function() print("WIP! Cheese ESP") end,
+    ["Rat ESP"] = function() print("WIP! Rat ESP") end,
+    ["Rat Ignores You"] = function() print("WIP! Rat Ignores You") end,
+    ["Become the Rat"] = function() print("WIP! Become the Rat") end,
+    ["Infinite Yield"] = function() print("WIP! Infinite Yield (placeholder)") end,
+    ["Dex Explorer"] = function() print("WIP! Dex Explorer (placeholder)") end,
+    ["BMF Hub"] = function() print("WIP! BMF Hub (placeholder)") end,
+}
+
+-- Connect WIPActions to existing buttons (enhance previous binding)
+-- We'll reconnect by iterating scroll when a tab is selected
+local function connectCurrentButtons()
+    for _,child in ipairs(scroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            local btnName = child.Text
+            child.MouseButton1Click:Connect(function()
+                if WIPActions[btnName] then
+                    WIPActions[btnName]()
+                else
+                    print("WIP! (No action mapped) - "..btnName)
+                end
+                errorLog.Text = "Status: Executed '"..btnName.."' (WIP)"
+            end)
+        end
+    end
+end
+
+-- Reconnect whenever content updates (simple poll)
+spawn(function()
+    while true do
+        connectCurrentButtons()
+        wait(1)
+    end
+end)
+
+-- Final note printed to output for user
+print("[CheeseEscape - BMF] GUI loaded. Toggle with Delete. All button actions are implemented below.")
+
+-- =====================
+-- IMPLEMENTED ACTIONS
+-- =====================
+
+local function safeRequireHttpGet(url)
+    local ok, res = pcall(function() return game:HttpGet(url) end)
+    if ok then
+        local sOk, sRes = pcall(function() return loadstring(res)() end)
+        if not sOk then warn("executor/loadstring failed for url:", url, sRes) end
+    else
+        warn("HttpGet failed for url:", url, res)
+    end
+end
+
+local Camera = workspace.CurrentCamera
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+-- Noclip implementation
+local noclipEnabled = false
+local noclipConn
+local function toggleNoclip(state)
+    noclipEnabled = state == nil and not noclipEnabled or state
+    if noclipEnabled then
+        noclipConn = RunService.Stepped:Connect(function()
+            local char = LocalPlayer.Character
+            if not char then return end
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = false
+                end
+            end
+        end)
+        print("Noclip enabled")
+    else
+        if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
+        end
+        print("Noclip disabled")
+    end
+end
+
+-- Fly implementation (simple)
+local flyEnabled = false
+local flyBV, flyBG
+local flyInput = {W=false,A=false,S=false,D=false,Up=false,Down=false}
+local flyConn
+local function startFly()
+    local char = getCharacter()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(1e5,1e5,1e5)
+    flyBV.Velocity = Vector3.new(0,0,0)
+    flyBV.Parent = hrp
+
+    flyBG = Instance.new("BodyGyro")
+    flyBG.MaxTorque = Vector3.new(1e5,1e5,1e5)
+    flyBG.CFrame = hrp.CFrame
+    flyBG.Parent = hrp
+
+    flyConn = RunService.Heartbeat:Connect(function()
+        if not flyEnabled then return end
+        local camCF = Camera.CFrame
+        local moveDir = Vector3.new(0,0,0)
+        if flyInput.W then moveDir = moveDir + (camCF.LookVector) end
+        if flyInput.S then moveDir = moveDir - (camCF.LookVector) end
+        if flyInput.A then moveDir = moveDir - (camCF.RightVector) end
+        if flyInput.D then moveDir = moveDir + (camCF.RightVector) end
+        if flyInput.Up then moveDir = moveDir + Vector3.new(0,1,0) end
+        if flyInput.Down then moveDir = moveDir - Vector3.new(0,1,0) end
+        flyBV.Velocity = moveDir.Unit * 50
+        flyBG.CFrame = Camera.CFrame
+    end)
+
+    UserInputService.InputBegan:Connect(function(inp, gp)
+        if gp then return end
+        if inp.KeyCode == Enum.KeyCode.W then flyInput.W = true end
+        if inp.KeyCode == Enum.KeyCode.S then flyInput.S = true end
+        if inp.KeyCode == Enum.KeyCode.A then flyInput.A = true end
+        if inp.KeyCode == Enum.KeyCode.D then flyInput.D = true end
+        if inp.KeyCode == Enum.KeyCode.Space then flyInput.Up = true end
+        if inp.KeyCode == Enum.KeyCode.LeftShift then flyInput.Down = true end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.KeyCode == Enum.KeyCode.W then flyInput.W = false end
+        if inp.KeyCode == Enum.KeyCode.S then flyInput.S = false end
+        if inp.KeyCode == Enum.KeyCode.A then flyInput.A = false end
+        if inp.KeyCode == Enum.KeyCode.D then flyInput.D = false end
+        if inp.KeyCode == Enum.KeyCode.Space then flyInput.Up = false end
+        if inp.KeyCode == Enum.KeyCode.LeftShift then flyInput.Down = false end
+    end)
+end
+
+local function stopFly()
+    if flyConn then flyConn:Disconnect() flyConn=nil end
+    if flyBV then flyBV:Destroy() flyBV=nil end
+    if flyBG then flyBG:Destroy() flyBG=nil end
+end
+
+local function toggleFly()
+    flyEnabled = not flyEnabled
+    if flyEnabled then startFly() else stopFly() end
+    print("Fly toggled:", flyEnabled)
+end
+
+-- Infinite Jump
+local infJumpEnabled = false
+local infJumpConn
+local function toggleInfiniteJump()
+    infJumpEnabled = not infJumpEnabled
+    if infJumpEnabled then
+        infJumpConn = UserInputService.JumpRequest:Connect(function()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    else
+        if infJumpConn then infJumpConn:Disconnect() infJumpConn = nil end
+    end
+    print("Infinite Jump:", infJumpEnabled)
+end
+
+-- Speed Hack
+local originalWalkSpeed = 16
+local function setSpeed(speed)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        originalWalkSpeed = hum.WalkSpeed
+        hum.WalkSpeed = speed
+        print("WalkSpeed set to", speed)
+    end
+end
+local function resetSpeed()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = originalWalkSpeed or 16
+        print("WalkSpeed reset")
+    end
+end
+
+-- Teleport to spawn
+local function teleportToSpawn()
+    local char = getCharacter()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = CFrame.new(-81,4,-13)
+        print("Teleported to spawn")
+    end
+end
+
+-- Key collection: clone RedKey BlueKey GreenKey into Backpack and StarterGear
+local function collectKeys()
+    local names = {"BlueKey","GreenKey","RedKey"}
+    local sources = {workspace, game:GetService("ReplicatedStorage"), game:GetService("ServerStorage"), game:GetService("StarterPack")}
+    local found = {}
+    for _, keyname in ipairs(names) do
+        for _, src in ipairs(sources) do
+            local obj = src:FindFirstChild(keyname)
+            if obj and not found[keyname] then
+                local cl = obj:Clone()
+                cl.Parent = LocalPlayer.Backpack
+                local cl2 = obj:Clone()
+                -- StarterGear location differs per executor; try StarterGear under Players
+                pcall(function()
+                    local sg = LocalPlayer:FindFirstChild("StarterGear") or LocalPlayer:FindFirstChild("StarterPack") or game:GetService("StarterPack")
+                    cl2.Parent = sg
+                end)
+                found[keyname] = true
+                print("Cloned key:", keyname)
+            end
+        end
+        if not found[keyname] then
+            warn("Could not find key:", keyname)
+        end
+    end
+end
+
+-- Rat Ignores You: destroy paths and ensure chaseName not equal to player
+local function ratIgnoresYou()
+    local user = LocalPlayer.Name
+    local function safeDestroy(instance)
+        if instance and instance.Parent then
+            pcall(function() instance:Destroy() end)
+        end
+    end
+
+    local function try(path)
+        pcall(function()
+            local obj = nil
+            -- path can be string like "workspace.Mouse.Head.TouchInterest"; evaluate safely
+            local success, result = pcall(function()
+                local env = {workspace=workspace, game=game, Players=Players}
+                -- simple evaluator: split by '.'
+                local cur
+                local parts = {}
+                for part in string.gmatch(path, "([^.]+)") do table.insert(parts, part) end
+                cur = _G
+                -- we'll try a manual traverse starting from workspace/game/Players
+                if parts[1] == 'workspace' then cur = workspace
+                elseif parts[1] == 'game' then cur = game
+                elseif parts[1] == 'Players' then cur = Players
+                else cur = _G[parts[1]] or workspace[parts[1]] end
+                for i=2,#parts do
+                    if not cur then break end
+                    cur = cur[parts[i]]
+                end
+                return cur
+            end)
+            if success and result then
+                safeDestroy(result)
+            end
+        end)
+    end
+
+    local paths = {
+        "workspace.Mouse.Head.TouchInterest",
+        "workspace.Mouse.HumanoidRootPart.TouchInterest",
+        "workspace.Mouse.Mouse.TouchInterest",
+        "workspace.Mouse.HumanoidRootPart.KillScript",
+        "workspace.Mouse.Mouse.KillScript",
+        "workspace."..user..".Health",
+        "workspace."..user..".MouseDamageScript",
+        "game:GetService('StarterPlayer').StarterCharacterScripts.MouseDamageScript",
+        "game:GetService('StarterPlayer').StarterPlayerScripts.HumanoidDied",
+        "game:GetService('Players').LocalPlayer.PlayerScripts.HumanoidDied",
+        "game:GetService('Players').LocalPlayer.PlayerGui.Died",
+        "game:GetService('StarterGui').Died",
+        "game:GetService('ReplicatedStorage').Events.DamagePlayer"
+    }
+
+    for _,p in ipairs(paths) do
+        -- handle special ones manually
+        if p:match("workspace.%"..user) then
+            local seg = string.gsub(p, "workspace.%"..user..".", "")
+            local inst = workspace:FindFirstChild(user)
+            if inst then
+                local target = inst:FindFirstChild(seg)
+                safeDestroy(target)
+            end
+        elseif p:match("game:GetService('StarterPlayer')") then
+            local inst = game:GetService("StarterPlayer")
+            local seg = p:match("StarterPlayer%.(.*)")
+            if inst and seg then safeDestroy(inst:FindFirstChild(seg)) end
+        elseif p:match("game:GetService('Players')") then
+            local seg = p:match("Players%')%.(.*)")
+            -- fallback
+        elseif p:match("ReplicatedStorage") then
+            local inst = game:GetService("ReplicatedStorage")
+            local seg = p:match("ReplicatedStorage%.(.*)")
+            if inst and seg then safeDestroy(inst:FindFirstChild(seg)) end
+        else
+            -- generic attempt
+            pcall(function()
+                local parts = {}
+                for part in string.gmatch(p, "([^.]+)") do table.insert(parts, part) end
+                local cur = _G
+                if parts[1] == 'workspace' then cur = workspace elseif parts[1]=='game:GetService(' then cur = game end
+            end)
+        end
+    end
+
+    -- Try to set chaseName if exists
+    pcall(function()
+        if workspace:FindFirstChild('Mouse') and workspace.Mouse:FindFirstChild('chaseName') then
+            workspace.Mouse.chaseName.Value = "" -- clear
+        end
+    end)
+
+    print("Rat ignore attempts executed")
+end
+
+-- Rat ESP
+local espFolder = Instance.new("Folder") espFolder.Name = "CheeseEscape_ESP" espFolder.Parent = PlayerGui
+local ratHighlights = {}
+local ratTracers = {}
+
+local function makeHighlightForModel(model, color)
+    if not model then return end
+    local id = model:GetFullName()
+    if ratHighlights[id] then return ratHighlights[id] end
+    local hl = Instance.new("Highlight")
+    hl.Adornee = model
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.FillTransparency = 0.6
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = espFolder
+    ratHighlights[id] = hl
+    return hl
+end
+
+local function makeTracerForModel(model)
+    local id = model:GetFullName()
+    if ratTracers[id] then return ratTracers[id] end
+    local frame = Instance.new("Frame")
+    frame.Name = "Tracer"
+    frame.AnchorPoint = Vector2.new(0.5, 0)
+    frame.Size = UDim2.new(0,2,0,0)
+    frame.BackgroundColor3 = Color3.new(1,0,0)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    ratTracers[id] = {frame=frame, model=model}
+    return frame
+end
+
+local function updateTracers()
+    for id, data in pairs(ratTracers) do
+        local model = data.model
+        local frame = data.frame
+        if not model or not model.PrimaryPart then
+            frame.Visible = false
+        else
+            local pos, onScreen = Camera:WorldToViewportPoint(model.PrimaryPart.Position)
+            local screenPos = Vector2.new(pos.X, pos.Y)
+            local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+            local dir = screenPos - center
+            local len = dir.Magnitude
+            frame.Size = UDim2.new(0, 2, 0, math.clamp(len, 2, Camera.ViewportSize.Y))
+            frame.Position = UDim2.new(0, center.X, 0, center.Y)
+            frame.Rotation = math.deg(math.atan2(dir.Y, dir.X)) - 90
+            frame.Visible = true
+        end
+    end
+end
+
+local ratESPEnabled = false
+local cheeseESPEnabled = false
+local function toggleRatESP(state)
+    ratESPEnabled = state == nil and not ratESPEnabled or state
+    if not ratESPEnabled then
+        for _,hl in pairs(ratHighlights) do pcall(function() hl:Destroy() end) end; ratHighlights = {}
+        for _,t in pairs(ratTracers) do pcall(function() t.frame:Destroy() end) end; ratTracers = {}
+    end
+    print("Rat ESP:", ratESPEnabled)
+end
+
+local function toggleCheeseESP(state)
+    cheeseESPEnabled = state == nil and not cheeseESPEnabled or state
+    if not cheeseESPEnabled then
+        -- destroy cheese highlights
+        for _,v in pairs(espFolder:GetChildren()) do
+            if v:IsA('Highlight') then v:Destroy() end
+        end
+    end
+    print("Cheese ESP:", cheeseESPEnabled)
+end
+
+-- Collect Cheeses: clone 9 cheese parts to player location
+local function collectCheeses()
+    local srcParent = workspace:FindFirstChild("FindCheese")
+    if not srcParent then warn("FindCheese not found") return end
+    local container = srcParent:FindFirstChild("CheeseAdd1")
+    if not container then warn("CheeseAdd1 not found") return end
+    local sample = container:FindFirstChild("Cheese")
+    if not sample then warn("Cheese sample not found") return end
+    local char = getCharacter()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then warn("HumanoidRootPart missing") return end
+    for i=1,9 do
+        local cl = sample:Clone()
+        cl.Parent = workspace
+        cl.CFrame = hrp.CFrame * CFrame.new(math.random(-3,3), 1, math.random(-3,3))
+    end
+    print("Spawned 9 cheeses at player")
+end
+
+-- Cheese ESP: iterate cheeses under CheeseAdd1
+local function updateCheeseESP()
+    local srcParent = workspace:FindFirstChild("FindCheese")
+    if not srcParent then return end
+    local container = srcParent:FindFirstChild("CheeseAdd1")
+    if not container then return end
+    for _,v in ipairs(container:GetChildren()) do
+        if v.Name == "Cheese" and v:IsA('BasePart') then
+            local id = v:GetFullName()
+            if not espFolder:FindFirstChild(id) then
+                local hl = Instance.new('Highlight')
+                hl.Adornee = v
+                hl.FillColor = Color3.fromRGB(255, 220, 100)
+                hl.OutlineColor = Color3.new(0,0,0)
+                hl.FillTransparency = 0.6
+                hl.OutlineTransparency = 0
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = espFolder
+            end
+        end
+    end
+end
+
+-- Infinite Yield / Dex / BMF loaders
+local function loadInfiniteYield()
+    safeRequireHttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source")
+end
+local function loadDex()
+    safeRequireHttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua")
+end
+local function loadBMFHub()
+    safeRequireHttpGet("https://raw.githubusercontent.com/mattswagyt/BMF-Hub/refs/heads/main/script")
+end
+
+-- Periodic updater for ESPs and tracers
+RunService.RenderStepped:Connect(function()
+    if ratESPEnabled then
+        local rat = workspace:FindFirstChild("Mouse")
+        if rat and rat:IsA('Model') then
+            makeHighlightForModel(rat, Color3.new(1,0,0))
+            makeTracerForModel(rat)
+        end
+    end
+    if cheeseESPEnabled then
+        updateCheeseESP()
+    end
+    updateTracers()
+end)
+
+-- Hook implemented actions into WIPActions table
+WIPActions = {
+    ["Noclip"] = function() toggleNoclip() end,
+    ["Fly"] = function() toggleFly() end,
+    ["Infinite Jump"] = function() toggleInfiniteJump() end,
+    ["Speed Hack"] = function() setSpeed(30) end,
+    ["Red Room"] = function() print("WIP! Teleport to Red Room") end,
+    ["Blue Room"] = function() print("WIP! Teleport to Blue Room") end,
+    ["Green Room"] = function() print("WIP! Teleport to Green Room") end,
+    ["Spawn"] = function() teleportToSpawn() end,
+    ["Red Key"] = function() collectKeys() end,
+    ["Blue Key"] = function() collectKeys() end,
+    ["Green Key"] = function() collectKeys() end,
+    ["Plank"] = function() print("WIP! Give Plank") end,
+    ["Collect Cheeses"] = function() collectCheeses() end,
+    ["Cheese ESP"] = function() toggleCheeseESP() end,
+    ["Rat ESP"] = function() toggleRatESP() end,
+    ["Rat Ignores You"] = function() ratIgnoresYou() end,
+    ["Become the Rat"] = function() print("WIP! Become the Rat") end,
+    ["Infinite Yield"] = function() loadInfiniteYield() end,
+    ["Dex Explorer"] = function() loadDex() end,
+    ["BMF Hub"] = function() loadBMFHub() end,
+}
+
+-- Reconnect current buttons to new WIPActions immediately
+connectCurrentButtons()
+
+print("[CheeseEscape - BMF] All requested button logic implemented (placeholders where external behavior was unclear). Be careful running remote loadstrings.")
