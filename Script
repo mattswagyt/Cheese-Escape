@@ -749,6 +749,55 @@ end
 local function collectCheeses()
     local srcParent = workspace:FindFirstChild("FindCheese")
     if not srcParent then warn("FindCheese not found") return end
+
+    local sample = nil
+    -- find any Cheese inside any CheeseAdd1 model
+    for _, obj in ipairs(srcParent:GetChildren()) do
+        if obj.Name == "CheeseAdd1" then
+            local c = obj:FindFirstChild("Cheese")
+            if c then sample = c break end
+        end
+    end
+    if not sample then warn("Cheese sample not found in any CheeseAdd1 models") return end
+
+    local char = getCharacter()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then warn("HumanoidRootPart missing") return end
+
+    for i = 1, 9 do
+        local model = Instance.new("Model")
+        model.Name = "CheeseAdd1"
+        model.Parent = srcParent
+
+        local clone = sample:Clone()
+        clone.Parent = model
+        if clone:IsA("BasePart") then
+            clone.CFrame = hrp.CFrame * CFrame.new(math.random(-3, 3), 1, math.random(-3, 3))
+        end
+    end
+
+    print("Created 9 CheeseAdd1 models, each with 1 Cheese")
+end
+
+    local originalContainer = srcParent:FindFirstChild("CheeseAdd1")
+    if not originalContainer then warn("CheeseAdd1 not found") return end
+
+    local sample = originalContainer:FindFirstChild("Cheese")
+    if not sample then warn("Cheese sample not found") return end
+
+    for i = 1, 9 do
+        local newModel = Instance.new("Model")
+        newModel.Name = "CheeseAdd" .. i
+        newModel.Parent = srcParent
+
+        local cheeseClone = sample:Clone()
+        cheeseClone.Parent = newModel
+
+        cheeseClone:SetAttribute("Collectible", true)
+    end
+
+    print("Spawned 9 collectible cheeses across CheeseAdd1-9")
+end
     local container = srcParent:FindFirstChild("CheeseAdd1")
     if not container then warn("CheeseAdd1 not found") return end
     local sample = container:FindFirstChild("Cheese")
